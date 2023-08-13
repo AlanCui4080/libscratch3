@@ -53,6 +53,7 @@ namespace libsc3
 
         public:
             file(zip_file_t* file);
+            ~file();
         };
 
     private:
@@ -61,6 +62,7 @@ namespace libsc3
 
     public:
         zip(const std::filesystem::path& input);
+        ~zip();
         file open(const std::string& path);
     };
 }

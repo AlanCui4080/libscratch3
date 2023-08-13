@@ -56,6 +56,11 @@ namespace libsc3
         if (zip_handle == nullptr)
             throw libzip_failure(return_value);
     }
+    zip::~zip()
+    {
+        if (zip_close(zip_handle))
+            throw libzip_failure(zip_handle);
+    }
     zip::file zip::open(const std::string& path)
     {
         auto file_handle = zip_fopen(zip_handle, path.c_str(), 0);
@@ -82,8 +87,12 @@ namespace libsc3
                 if (written_size == std::numeric_limits<decltype(written_size)>::max())
                     throw libzip_failure();
                 write(buf, written_size);
-        } while (written_size < READ_BLOCK_SIZE);
+        } while (written_size == READ_BLOCK_SIZE);
 
         delete[] buf;
+    }
+    zip::file::~file()
+    {
+        zip_fclose(file_handle);
     }
 }
