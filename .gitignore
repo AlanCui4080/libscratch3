@@ -36,5 +36,7 @@
 *.app
 
 .vscode
+build
 CMakeFiles
 CMakeCache.txt
+Testing
