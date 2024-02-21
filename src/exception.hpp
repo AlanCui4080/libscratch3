@@ -4,6 +4,8 @@
 #include <zip.h>
 #include <boost/json.hpp>
 #include <sstream>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 namespace libsc3
 {
     class libzip_runtime_error : public std::exception
@@ -13,6 +15,7 @@ namespace libsc3
 
     public:
         virtual const char* what() const noexcept override final;
+
     public:
         libzip_runtime_error(int zip_errorno);
         libzip_runtime_error(zip_t* p);
@@ -20,12 +23,19 @@ namespace libsc3
     };
     class file_format_error : public std::exception
     {
-        private:
-        std::string s_what;
+    private:
+        std::string       s_what;
         std::stringstream ss_va;
-        public:
+
+    public:
         virtual const char* what() const noexcept override final;
-        public:
+
+    public:
         file_format_error(const std::string& what, boost::json::value& va);
+    };
+    class sdl_error : public std::exception
+    {
+    public:
+        virtual const char* what() const noexcept override final;
     };
 } // namespace libsc3

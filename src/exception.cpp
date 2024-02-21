@@ -31,3 +31,7 @@ const char* file_format_error::what() const noexcept
 {
     return std::format("file_format_error: {} \n at: {}",s_what,ss_va.str()).c_str();
 }
+const char* sdl_error::what() const noexcept
+{
+    return SDL_GetError();
+}
