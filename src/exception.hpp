@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// SPDX-License-Identifier: LGPL-3.0-or-later 
+// SPDX-License-Identifier: LGPL-3.0-or-later
 
 #pragma once
 #include <exception>

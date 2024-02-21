@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// SPDX-License-Identifier: LGPL-3.0-or-later 
+// SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "player.hpp"
 #include "exception.hpp"
@@ -22,8 +22,8 @@ using namespace libsc3;
 player::player(SDL_Window* window)
 {
     this->player_renderer = SDL_CreateRenderer(window, -1, renderer_flag);
-    if(this->player_renderer == nullptr)
+    if (this->player_renderer == nullptr)
     {
         throw sdl_error();
-    } 
+    }
 }

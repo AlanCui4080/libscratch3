@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// SPDX-License-Identifier: LGPL-3.0-or-later 
+// SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "exception.hpp"
 #include <format>
@@ -47,7 +47,7 @@ file_format_error::file_format_error(const std::string& what, boost::json::value
 }
 const char* file_format_error::what() const noexcept
 {
-    return std::format("file_format_error: {} \n at: {}",s_what,ss_va.str()).c_str();
+    return std::format("file_format_error: {} \n at: {}", s_what, ss_va.str()).c_str();
 }
 const char* sdl_error::what() const noexcept
 {

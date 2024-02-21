@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// SPDX-License-Identifier: LGPL-3.0-or-later 
+// SPDX-License-Identifier: LGPL-3.0-or-later
 
 #include "project.hpp"
 #include "exception.hpp"
@@ -126,27 +126,22 @@ target::target(stage& stage, boost::json::value& json_value,
     {
         std::string_view key_view           = i.key();
         std::string_view variable_name_view = i.value().as_array()[0].as_string();
-        if (i.value().as_array()[1].is_array())
-        {
-            auto&&                           this_array = i.value().as_array()[1].as_array();
-            std::vector<variable_value_type> value_vector;
-            std::for_each(this_array.begin(), this_array.end(),
-                          [&](decltype(*this_array.begin()) it) {
-                              value_vector.emplace_back(variable_value_helper(it));
-                          });
-            auto value_pair =
-                std::make_pair(std::string(variable_name_view), std::move(value_vector));
-            this->variable_list.insert_or_assign(std::string(key_view), std::move(value_pair));
-        }
-        else
-        {
-            std::vector<variable_value_type> value_vector;
-            value_vector.push_back(variable_value_helper(i.value().as_array()[1]));
 
-            auto value_pair =
-                std::make_pair(std::string(variable_name_view), std::move(value_vector));
-            this->variable_list.insert_or_assign(std::string(key_view), std::move(value_pair));
-        }
+        auto value_pair = std::make_pair(std::string(variable_name_view),
+                                        variable_value_helper(i.value().as_array()[1]));
+        this->variable_list.insert_or_assign(std::string(key_view), std::move(value_pair));
+    }
+    for (auto&& i : json_value.as_object()["lists"].as_object())
+    {
+        std::string_view                 key_view           = i.key();
+        std::string_view                 variable_name_view = i.value().as_array()[0].as_string();
+        auto&&                           this_array         = i.value().as_array()[1].as_array();
+        std::vector<variable_value_type> value_vector;
+        std::for_each(this_array.begin(), this_array.end(), [&](decltype(*this_array.begin()) it) {
+            value_vector.emplace_back(variable_value_helper(it));
+        });
+        auto value_pair = std::make_pair(std::string(variable_name_view), std::move(value_vector));
+        this->list_list.insert_or_assign(std::string(key_view), std::move(value_pair));
     }
     for (auto&& i : json_value.as_object()["costumes"].as_array())
     {
@@ -204,5 +199,4 @@ stage::stage(boost::json::value&                                 json_value,
              std::unordered_map<std::string, element_file_type>& elem_list)
     : target(*this, json_value, elem_list)
 {
-
 }

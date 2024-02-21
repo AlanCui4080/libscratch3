@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// SPDX-License-Identifier: LGPL-3.0-or-later 
+// SPDX-License-Identifier: LGPL-3.0-or-later
 
 #pragma once
 #include <zip.h>
@@ -42,9 +42,10 @@ namespace libsc3
         typedef zip_file_t*                                     element_file_type;
 
     private:
-        std::string_view name;
+        std::string_view                                                             name;
+        std::unordered_map<std::string, std::pair<std::string, variable_value_type>> variable_list;
         std::unordered_map<std::string, std::pair<std::string, std::vector<variable_value_type>>>
-                                                               variable_list;
+                                                               list_list;
         std::unordered_map<std::string, renderer_surface_type> costume_list;
         std::unordered_map<std::string, mixer_sound_type>      sound_list;
 
