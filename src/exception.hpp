@@ -17,13 +17,13 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #pragma once
-#include <exception>
-#include <stdexcept>
-#include <zip.h>
-#include <boost/json.hpp>
-#include <sstream>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#include <boost/json.hpp>
+#include <exception>
+#include <sstream>
+#include <stdexcept>
+#include <zip.h>
 namespace libsc3
 {
     class libzip_runtime_error : public std::exception
@@ -37,6 +37,7 @@ namespace libsc3
     public:
         libzip_runtime_error(int zip_errorno);
         libzip_runtime_error(zip_t* p);
+        libzip_runtime_error(zip_file_t* p);
         ~libzip_runtime_error();
     };
     class file_format_error : public std::exception
@@ -51,7 +52,7 @@ namespace libsc3
     public:
         file_format_error(const std::string& what, boost::json::value& va);
     };
-    class sdl_error : public std::exception
+    class libsdl_runtime_error : public std::exception
     {
     public:
         virtual const char* what() const noexcept override final;

@@ -18,9 +18,59 @@
 
 #include "project.hpp"
 #include "exception.hpp"
-#include <iostream>
 #include <cstdlib>
+#include <iostream>
 using namespace libsc3;
+namespace detail
+{
+    class file_segment : public std::pair<void*, std::uint64_t>
+    {
+    public:
+        file_segment(void* p, std::uint64_t s)
+            : std::pair<void*, std::uint64_t>(p, s)
+        {
+        }
+        ~file_segment()
+        {
+            std::free(this->first);
+        }
+    };
+} // namespace detail
+
+/**
+ * @brief helper to read a compressed file to memory
+ *
+ * @param file_to_read
+ * @retval .first = pointer to buffer read out
+ * @retval .second = size of effective content length
+ */
+static inline detail::file_segment
+libzip_file_read_helper(project::element_file_type file_to_read)
+{
+    static constexpr auto buffer_block_step   = 4096;
+    auto                  buffer_size         = 0;
+    void*                 buffer              = nullptr;
+    std::uint64_t         total_read_out_size = 0;
+    std::uint64_t         read_out_size       = 0;
+    do
+    {
+        buffer_size += buffer_block_step;
+        buffer = std::realloc(buffer, buffer_size);
+        if (buffer == nullptr)
+        {
+            throw std::system_error(
+                errno, std::generic_category(), "failed to realloc buffer");
+        }
+        read_out_size = zip_fread(file_to_read, buffer, buffer_size);
+        if (read_out_size == -1U)
+        {
+            throw libzip_runtime_error(file_to_read);
+        }
+        total_read_out_size += read_out_size;
+    } while (read_out_size != 0);
+    return { buffer, total_read_out_size };
+}
+
 project::project(const std::filesystem::path& path)
 {
     int zip_errorno;
@@ -44,20 +94,12 @@ project::project(const std::filesystem::path& path)
             stat_data.name, zip_fopen_index(this->compressed_bundle, i, 0));
     }
 
-    static constexpr auto buffer_block_step      = 4096;
-    auto                  buffer_size            = buffer_block_step;
-    auto                  project_element_buffer = std::calloc(buffer_size, 1);
-    while (!zip_fread(this->element_list["project.json"],
-                      project_element_buffer, buffer_size))
-    {
-        buffer_size += 4096;
-        project_element_buffer =
-            std::realloc(project_element_buffer, buffer_size);
-    }
+    // read entire project.json out.
+    auto file_to_read = this->element_list["project.json"];
+    auto file_buffer  = libzip_file_read_helper(file_to_read);
     // it do make a copy, but pmr is too complex for now.
     this->project_source = decltype(this->project_source)(
-        reinterpret_cast<char*>(project_element_buffer));
-    std::free(project_element_buffer);
+        reinterpret_cast<char*>(file_buffer.first));
 
     this->stage_target = target_list.end();
     for (auto&& i : this->project_source.as_object()["targets"].as_array())
@@ -80,18 +122,18 @@ project::project(const std::filesystem::path& path)
         }
         else
         {
-            if (this->stage_target == target_list.end())
-            {
-                throw file_format_error(
-                    "a non stage target listed front of stage", i);
-            }
-            else
+            if (this->stage_target != target_list.end())
             {
                 auto&& stage_ref =
                     dynamic_cast<stage&>((*this->stage_target).second);
                 auto target_object = target(stage_ref, i, this->element_list);
-                this->target_list.emplace(std::string(target_name_view),
-                                          std::move(target_object));
+                this->target_list.emplace(
+                    std::string(target_name_view), std::move(target_object));
+            }
+            else
+            {
+                throw file_format_error(
+                    "a non stage target listed front of stage", i);
             }
         }
     }
@@ -121,99 +163,152 @@ variable_value_helper(boost::json::value& va)
     }
     else
     {
-        throw file_format_error("a variable is neither a number nor a string",
-                                va);
+        throw file_format_error(
+            "a variable is neither a number nor a string", va);
     }
 }
 
-target::target(stage& stage, boost::json::value& json_value,
-               std::unordered_map<std::string, element_file_type>& elem_list)
+target::target(
+    stage& stage, boost::json::value& json_value,
+    std::unordered_map<std::string, element_file_type>& elem_list)
+    : stage_reference(stage)
 {
     this->name = json_value.as_object()["name"].as_string();
+
+    // FORMAT EXAMPLE:
+    //
+    // "variables": {
+    //     "`jEk@4|i[#Fk?(8x)AV": [
+    //         "my variable",
+    //         0
+    //     ]
+    // },
     for (auto&& i : json_value.as_object()["variables"].as_object())
     {
         std::string_view key_view = i.key();
         std::string_view variable_name_view =
             i.value().as_array()[0].as_string();
 
-        auto value_pair =
-            std::make_pair(std::string(variable_name_view),
-                           variable_value_helper(i.value().as_array()[1]));
-        this->variable_list.insert_or_assign(std::string(key_view),
-                                             std::move(value_pair));
+        auto value_pair = std::make_pair(
+            std::string(variable_name_view),
+            variable_value_helper(i.value().as_array()[1]));
+
+        this->variable_list.insert_or_assign(
+            std::string(key_view), std::move(value_pair));
     }
+
+    // FORMAT EXAMPLE:
+    //
+    // "lists": {
+    //     "0V;K4aNBrP1#^NS(HgFN": [
+    //         "my list",
+    //         [
+    //             "D",
+    //             "F",
+    //             "J",
+    //             "K"
+    //         ]
+    //     ]
+    // },
     for (auto&& i : json_value.as_object()["lists"].as_object())
     {
         std::string_view key_view = i.key();
         std::string_view variable_name_view =
             i.value().as_array()[0].as_string();
+
         auto&& this_array = i.value().as_array()[1].as_array();
+
         std::vector<variable_value_type> value_vector;
-        std::for_each(this_array.begin(), this_array.end(),
-                      [&](decltype(*this_array.begin()) it) {
-                          value_vector.emplace_back(variable_value_helper(it));
-                      });
-        auto value_pair = std::make_pair(std::string(variable_name_view),
-                                         std::move(value_vector));
-        this->list_list.insert_or_assign(std::string(key_view),
-                                         std::move(value_pair));
+        std::for_each(
+            this_array.begin(), this_array.end(),
+            [&](decltype(*this_array.begin()) it) {
+                value_vector.emplace_back(variable_value_helper(it));
+            });
+
+        auto value_pair = std::make_pair(
+            std::string(variable_name_view), std::move(value_vector));
+        this->list_list.insert_or_assign(
+            std::string(key_view), std::move(value_pair));
     }
+
+    // FORMAT EXAMPLE:
+    //
+    // "currentCostume": 0,
+    // "costumes": [
+    //     {
+    //         "name": "backdrop1",
+    //         "dataFormat": "svg",
+    //         "assetId": "cd21514d0531fdffb22204e0ec5ed84a", ///ignored.
+    //         "md5ext": "cd21514d0531fdffb22204e0ec5ed84a.svg",
+    //         "rotationCenterX": 240,
+    //         "rotationCenterY": 180
+    //     }
+    // ],
     for (auto&& i : json_value.as_object()["costumes"].as_array())
     {
         auto costume_name = std::string(i.as_object()["name"].as_string());
-        static constexpr auto buffer_block_step = 4096;
-        auto                  buffer_size       = buffer_block_step;
-        auto                  costume_buffer    = std::calloc(buffer_size, 1);
-        while (!zip_fread(
-            elem_list[std::string(i.as_object()["md5ext"].as_string())],
-            costume_buffer, buffer_size))
-        {
-            buffer_size += 4096;
-            costume_buffer = std::realloc(costume_buffer, buffer_size);
-        }
-        auto costume_rw = SDL_RWFromMem(costume_buffer, buffer_size);
+        auto file_to_read =
+            elem_list[std::string(i.as_object()["md5ext"].as_string())];
+        auto file_buffer = libzip_file_read_helper(file_to_read);
+        auto costume_rw  = SDL_RWFromMem(file_buffer.first, file_buffer.second);
         if (costume_rw == nullptr)
         {
-            throw sdl_error();
+            throw libsdl_runtime_error();
         }
-        auto data_fmt_str    = i.as_object()["dataFormat"].as_string().c_str();
+
+        auto data_fmt_str = i.as_object()["dataFormat"].as_string().c_str();
+        // number "1" in arguments presenting to free RWpos when returning. so
+        // no need for SDL_RWclose below
         auto costume_surface = IMG_LoadTyped_RW(costume_rw, 1, data_fmt_str);
         if (costume_surface == nullptr)
         {
-            throw sdl_error();
+            throw libsdl_runtime_error();
         }
         costume_list.insert_or_assign(costume_name, costume_surface);
-        std::free(costume_buffer);
     }
+
+    // FORMAT EXAMPLE:
+    //
+    // "sounds": [
+    //     {
+    //         "name": "pop",
+    //         "assetId": "83a9787d4cb6f3b7632b4ddfebf74367", ///ignored.
+    //         "dataFormat": "wav",
+    //         "format": "",
+    //         "rate": 48000,
+    //         "sampleCount": 1123,
+    //         "md5ext": "83a9787d4cb6f3b7632b4ddfebf74367.wav"
+    //     }
+    // ],
+    // "volume": 100,
     for (auto&& i : json_value.as_object()["sounds"].as_array())
     {
         auto sound_name = std::string(i.as_object()["name"].as_string());
-        static constexpr auto buffer_block_step = 4096;
-        auto                  buffer_size       = buffer_block_step;
-        auto                  sound_buffer      = std::calloc(buffer_size, 1);
-        while (!zip_fread(
-            elem_list[std::string(i.as_object()["md5ext"].as_string())],
-            sound_buffer, buffer_size))
-        {
-            buffer_size += 4096;
-            sound_buffer = std::realloc(sound_buffer, buffer_size);
-        }
-        auto sound_rw = SDL_RWFromMem(sound_buffer, buffer_size);
+        auto file_to_read =
+            elem_list[std::string(i.as_object()["md5ext"].as_string())];
+        auto file_buffer = libzip_file_read_helper(file_to_read);
+        auto sound_rw    = SDL_RWFromMem(file_buffer.first, file_buffer.second);
         if (sound_rw == nullptr)
         {
-            throw sdl_error();
+            throw libsdl_runtime_error();
         }
+        // number "1" in arguments presenting to free RWpos when returning. so
+        // no need for SDL_RWclose below
         auto sound_target = Mix_LoadMUS_RW(sound_rw, 1);
         if (sound_target == nullptr)
         {
-            throw sdl_error();
+            throw libsdl_runtime_error();
         }
         sound_list.insert_or_assign(sound_name, sound_target);
-        std::free(sound_buffer);
     }
 }
-stage::stage(boost::json::value&                                 json_value,
-             std::unordered_map<std::string, element_file_type>& elem_list)
+stage::stage(
+    boost::json::value&                                 json_value,
+    std::unordered_map<std::string, element_file_type>& elem_list)
     : target(*this, json_value, elem_list)
 {
+}
+auto stage::get_variable_list() -> decltype(variable_list)&
+{
+    return variable_list;
 }

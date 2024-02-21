@@ -17,17 +17,17 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
 #pragma once
-#include <zip.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <SDL2/SDL_mixer.h>
+#include <boost/json.hpp>
 #include <filesystem>
-#include <vector>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <variant>
-#include <boost/json.hpp>
-#include <SDL2/SDL_image.h>
-#include <SDL2/SDL_mixer.h>
-#include <SDL2/SDL.h>
+#include <vector>
+#include <zip.h>
 namespace libsc3
 {
     class stage;
@@ -36,6 +36,7 @@ namespace libsc3
         friend class stage;
 
     public:
+        // a container to express scratch *any* type variables
         typedef std::variant<std::string, std::int64_t, double>
                              variable_value_type;
         typedef SDL_Surface* renderer_surface_type;
@@ -43,39 +44,58 @@ namespace libsc3
         typedef zip_file_t*  element_file_type;
 
     private:
+        stage&           stage_reference;
         std::string_view name;
-        std::unordered_map<std::string,
-                           std::pair<std::string, variable_value_type>>
-            variable_list;
+
+        // store all objects in "variables"
+        std::unordered_map<
+            std::string, std::pair<std::string, variable_value_type>>
+                                                          variable_list;
+        // store all objects in "sounds"
+        std::unordered_map<std::string, mixer_sound_type> sound_list;
+        // store all objects in "lists"
         std::unordered_map<
             std::string,
             std::pair<std::string, std::vector<variable_value_type>>>
                                                                list_list;
+        // store all objects in "costumes"
         std::unordered_map<std::string, renderer_surface_type> costume_list;
-        std::unordered_map<std::string, mixer_sound_type>      sound_list;
 
     private:
-        virtual constexpr auto get_variable_list() noexcept
-            -> decltype(variable_list)&
-        {
-            return variable_list;
-        }
+        // to be override by stage
+        virtual auto get_variable_list() -> decltype(variable_list)&;
 
     public:
-        target(stage& stage, boost::json::value& json_value,
-               std::unordered_map<std::string, element_file_type>& elem_list);
+        /**
+         * @brief constructor
+         *
+         * @param stage stage reference providing visibility for name looking up
+         * @param json_value an value presenting this target
+         * @param elem_list compressed file list fpr media loading
+         */
+        target(
+            stage& stage, boost::json::value& json_value,
+            std::unordered_map<std::string, element_file_type>& elem_list);
     };
 
     class stage : public target
     {
     public:
-        stage(boost::json::value&                                 json_value,
-              std::unordered_map<std::string, element_file_type>& elem_list);
-        virtual constexpr auto get_variable_list() noexcept
-            -> decltype(variable_list)& override
-        {
-            return variable_list;
-        }
+        /**
+         * @brief constructor
+         *
+         * @param json_value an value presenting this target
+         * @param elem_list compressed file list fpr media loading
+         *
+         * @note only one stage can be constructed in a project, it's actually a
+         * warpper to target::target which provide *this to stage reference.
+         */
+        stage(
+            boost::json::value&                                 json_value,
+            std::unordered_map<std::string, element_file_type>& elem_list);
+
+    public:
+        virtual auto get_variable_list() -> decltype(variable_list)& override;
     };
 
     class project
@@ -89,10 +109,14 @@ namespace libsc3
         project_bundle_type                                compressed_bundle;
         std::unordered_map<std::string, element_file_type> element_list;
         std::unordered_map<std::string, target>            target_list;
-
-        decltype(target_list)::iterator stage_target;
+        decltype(target_list)::iterator                    stage_target;
 
     public:
+        /**
+         * @brief constructor
+         *
+         * @param path an value presenting the .sb3 file
+         */
         project(const std::filesystem::path& path);
         ~project();
     };

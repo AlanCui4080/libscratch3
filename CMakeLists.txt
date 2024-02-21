@@ -11,9 +11,11 @@ pkg_check_modules(ZIP libzip REQUIRED)
 
 file(GLOB PROJ_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 
+
+if(${MSVC})
 add_compile_options(-Wall)
-if(!${MSVC})
-    add_compile_options(-Wextra)
+else()
+add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 add_compile_options(-fsanitize=leak -fsanitize=address -fsanitize=undefined)
 add_link_options(-fsanitize=leak -fsanitize=address -fsanitize=undefined)
