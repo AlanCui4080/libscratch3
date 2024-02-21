@@ -36,18 +36,20 @@ libzip_runtime_error::~libzip_runtime_error()
 }
 const char* libzip_runtime_error::what() const noexcept
 {
-    return std::format("libzip_error: {}\nversion: {}", zip_error_strerror(error),
-                       zip_libzip_version())
+    return std::format("libzip_error: {}\nversion: {}",
+                       zip_error_strerror(error), zip_libzip_version())
         .c_str();
 }
-file_format_error::file_format_error(const std::string& what, boost::json::value& va)
+file_format_error::file_format_error(const std::string&  what,
+                                     boost::json::value& va)
 {
     s_what = what;
     ss_va << va;
 }
 const char* file_format_error::what() const noexcept
 {
-    return std::format("file_format_error: {} \n at: {}", s_what, ss_va.str()).c_str();
+    return std::format("file_format_error: {} \n at: {}", s_what, ss_va.str())
+        .c_str();
 }
 const char* sdl_error::what() const noexcept
 {

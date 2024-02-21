@@ -36,21 +36,27 @@ namespace libsc3
         friend class stage;
 
     public:
-        typedef std::variant<std::string, std::int64_t, double> variable_value_type;
-        typedef SDL_Surface*                                    renderer_surface_type;
-        typedef Mix_Music*                                      mixer_sound_type;
-        typedef zip_file_t*                                     element_file_type;
+        typedef std::variant<std::string, std::int64_t, double>
+                             variable_value_type;
+        typedef SDL_Surface* renderer_surface_type;
+        typedef Mix_Music*   mixer_sound_type;
+        typedef zip_file_t*  element_file_type;
 
     private:
-        std::string_view                                                             name;
-        std::unordered_map<std::string, std::pair<std::string, variable_value_type>> variable_list;
-        std::unordered_map<std::string, std::pair<std::string, std::vector<variable_value_type>>>
+        std::string_view name;
+        std::unordered_map<std::string,
+                           std::pair<std::string, variable_value_type>>
+            variable_list;
+        std::unordered_map<
+            std::string,
+            std::pair<std::string, std::vector<variable_value_type>>>
                                                                list_list;
         std::unordered_map<std::string, renderer_surface_type> costume_list;
         std::unordered_map<std::string, mixer_sound_type>      sound_list;
 
     private:
-        virtual constexpr auto get_variable_list() noexcept -> decltype(variable_list)&
+        virtual constexpr auto get_variable_list() noexcept
+            -> decltype(variable_list)&
         {
             return variable_list;
         }
@@ -65,7 +71,8 @@ namespace libsc3
     public:
         stage(boost::json::value&                                 json_value,
               std::unordered_map<std::string, element_file_type>& elem_list);
-        virtual constexpr auto get_variable_list() noexcept -> decltype(variable_list)& override
+        virtual constexpr auto get_variable_list() noexcept
+            -> decltype(variable_list)& override
         {
             return variable_list;
         }

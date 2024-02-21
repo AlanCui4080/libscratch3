@@ -24,7 +24,8 @@ namespace libsc3
     class player
     {
     public:
-        static constexpr auto renderer_flag = SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC;
+        static constexpr auto renderer_flag = SDL_RENDERER_ACCELERATED |
+                                              SDL_RENDERER_PRESENTVSYNC;
 
     private:
         SDL_Renderer* player_renderer;
