@@ -1,29 +1,15 @@
 #include "project.hpp"
+#include "exception.hpp"
 #include <iostream>
 #include <cstdlib>
 using namespace libsc3;
-[[noreturn]] static inline void libzip_error_helper(int zip_errorno)
-{
-    zip_error_t error;
-    zip_error_init_with_code(&error, zip_errorno);
-    std::cerr << zip_error_strerror(&error) << std::endl;
-    zip_error_fini(&error);
-    std::exit(EXIT_FAILURE);
-}
-[[noreturn]] static inline void libzip_error_helper(zip_t* p)
-{
-    auto error = zip_get_error(p);
-    std::cerr << zip_error_strerror(error) << std::endl;
-    zip_error_fini(error);
-    std::exit(EXIT_FAILURE);
-}
 project::project(const std::filesystem::path& path)
 {
     int zip_errorno;
     this->compressed_bundle = zip_open(path.c_str(), ZIP_CHECKCONS | ZIP_RDONLY, &zip_errorno);
     if (this->compressed_bundle == nullptr)
     {
-        libzip_error_helper(zip_errorno);
+        throw libzip_runtime_error(zip_errorno);
     }
 
     auto element_count = zip_get_num_entries(this->compressed_bundle, 0);
@@ -33,9 +19,10 @@ project::project(const std::filesystem::path& path)
         auto       result = zip_stat_index(this->compressed_bundle, i, 0, &stat_data);
         if (result != 0)
         {
-            libzip_error_helper(this->compressed_bundle);
+            throw libzip_runtime_error(this->compressed_bundle);
         }
-        this->element_list.insert_or_assign(stat_data.name, zip_fopen_index(this->compressed_bundle, i, 0));
+        this->element_list.insert_or_assign(stat_data.name,
+                                            zip_fopen_index(this->compressed_bundle, i, 0));
     }
 
     static constexpr auto buffer_block_step      = 4096;
@@ -47,7 +34,8 @@ project::project(const std::filesystem::path& path)
         project_element_buffer = std::realloc(project_element_buffer, buffer_size);
     }
     // it do make a copy, but pmr is too complex for now.
-    this->project_source = decltype(this->project_source)(reinterpret_cast<char*>(project_element_buffer));
+    this->project_source =
+        decltype(this->project_source)(reinterpret_cast<char*>(project_element_buffer));
     std::free(project_element_buffer);
 
     this->stage_target = target_list.end();
@@ -57,7 +45,8 @@ project::project(const std::filesystem::path& path)
         if (i.as_object()["isStage"].as_bool())
         {
             auto stage_object = stage(i);
-            auto result = this->target_list.insert_or_assign(std::string(target_name_view), std::move(stage_object));
+            auto result =
+                this->target_list.emplace(std::string(target_name_view), std::move(stage_object));
 
             if (this->stage_target == target_list.end())
             {
@@ -72,7 +61,18 @@ project::project(const std::filesystem::path& path)
         }
         else
         {
-            this->target_list.insert_or_assign(std::string(target_name_view), i);
+            if (this->stage_target == target_list.end())
+            {
+                // TODO: better error handling
+                std::cerr << "a non stage target listed front of stage" << std::endl;
+                std::exit(EXIT_FAILURE);
+            }
+            else
+            {
+                auto&& stage_ref     = dynamic_cast<stage&>((*this->stage_target).second);
+                auto   target_object = target(stage_ref, i);
+                this->target_list.emplace(std::string(target_name_view), std::move(target_object));
+            }
         }
     }
 }
@@ -92,7 +92,8 @@ target::target(boost::json::value& json_value)
         std::string_view key_view           = i.key();
         std::string_view variable_name_view = i.value().as_array()[0].as_string();
 
-        auto value_pair = std::make_pair(std::string(variable_name_view), i.value().as_array()[1].as_int64());
+        auto value_pair =
+            std::make_pair(std::string(variable_name_view), i.value().as_array()[1].as_int64());
         this->variable_list.insert_or_assign(std::string(key_view), std::move(value_pair));
     }
 }

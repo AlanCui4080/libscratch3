@@ -21,24 +21,25 @@ namespace libsc3
         std::string_view                                                             name;
         std::unordered_map<std::string, std::pair<std::string, variable_value_type>> variable_list;
 
-    public:
+    private:
         target(boost::json::value& json_value);
+        virtual constexpr auto get_variable_list() noexcept -> decltype(variable_list)&
+        {
+            return variable_list;
+        }
+
+    public:
+        target(stage& stage, boost::json::value& json_value);
     };
 
     class stage : public target
     {
     public:
         stage(boost::json::value& json_value);
-
-    public:
-        constexpr auto get_variable_list() noexcept -> decltype(target::variable_list)&
+        virtual constexpr auto get_variable_list() noexcept -> decltype(variable_list)& override
         {
-            return target::variable_list;
-        };
-        constexpr auto get_variable_list() const noexcept -> const decltype(target::variable_list)&
-        {
-            return target::variable_list;
-        };
+            return variable_list;
+        }
     };
 
     class project
