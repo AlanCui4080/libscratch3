@@ -54,18 +54,14 @@ project::project(const std::filesystem::path& path)
             }
             else
             {
-                // TODO: better error handling
-                std::cerr << "duplicated stage detected" << std::endl;
-                std::exit(EXIT_FAILURE);
+                throw file_format_error("duplicated stage detected", i);
             }
         }
         else
         {
             if (this->stage_target == target_list.end())
             {
-                // TODO: better error handling
-                std::cerr << "a non stage target listed front of stage" << std::endl;
-                std::exit(EXIT_FAILURE);
+                throw file_format_error("a non stage target listed front of stage", i);
             }
             else
             {
