@@ -129,7 +129,7 @@ project::project(const std::filesystem::path& path)
             if (this->stage_target != target_list.end())
             {
                 auto&& stage_ref =
-                    dynamic_cast<stage&>(this->stage_target->second);
+                    static_cast<stage&>(this->stage_target->second);
                 auto target_object = target(stage_ref, i, this->element_list);
                 this->target_list.emplace(
                     std::string(target_name_view), std::move(target_object));

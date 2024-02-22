@@ -1,0 +1,4 @@
+include_directories(${CMAKE_SOURCE_DIR}/src)
+add_executable(test_project_construct test_project_construct.cpp)
+target_link_libraries(test_project_construct scratch3)
+add_test(NAME test_project_construct COMMAND test_project_construct)

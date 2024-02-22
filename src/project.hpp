@@ -61,10 +61,6 @@ namespace libsc3
         // store all objects in "costumes"
         std::unordered_map<std::string, renderer_surface_type> costume_list;
 
-    private:
-        // to be override by stage
-        virtual auto get_variable_list() -> decltype(variable_list)&;
-
     public:
         /**
          * @brief constructor
@@ -95,7 +91,7 @@ namespace libsc3
             std::unordered_map<std::string, element_file_type>& elem_list);
 
     public:
-        virtual auto get_variable_list() -> decltype(variable_list)& override;
+        auto get_variable_list() -> decltype(variable_list)&;
     };
 
     class project
