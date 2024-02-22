@@ -30,7 +30,7 @@ namespace libsc3
     {
     private:
         zip_error_t* error;
-
+        std::string errorstr;
     public:
         virtual const char* what() const noexcept override final;
 
