@@ -72,6 +72,11 @@ namespace libsc3
         target(
             stage& stage, boost::json::value& json_value,
             std::unordered_map<std::string, element_file_type>& elem_list);
+
+            target(
+             boost::json::value& json_value,
+            std::unordered_map<std::string, element_file_type>& elem_list);
+        ~target();
     };
 
     class stage : public target

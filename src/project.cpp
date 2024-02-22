@@ -175,7 +175,10 @@ variable_value_helper(boost::json::value& va)
             "a variable is neither a number nor a string", va);
     }
 }
-
+target::target(
+    boost::json::value&                                 json_value,
+    std::unordered_map<std::string, element_file_type>& elem_list)
+    : target(static_cast<stage&>(*this), json_value, elem_list){};
 target::target(
     stage& stage, boost::json::value& json_value,
     std::unordered_map<std::string, element_file_type>& elem_list)
