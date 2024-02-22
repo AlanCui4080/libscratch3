@@ -20,14 +20,15 @@
 #include "exception.hpp"
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 using namespace libsc3;
 namespace detail
 {
-    class file_segment : public std::pair<void*, std::uint64_t>
+    class file_segment : public std::pair<void*, int>
     {
     public:
-        file_segment(void* p, std::uint64_t s)
-            : std::pair<void*, std::uint64_t>(p, s)
+        file_segment(void* p, int s)
+            : std::pair<void*, int>(p, s)
         {
         }
         ~file_segment()
@@ -51,16 +52,18 @@ libzip_file_read_helper(project::element_file_type file_to_read)
     auto                  buffer_size         = 0;
     void*                 buffer              = nullptr;
     std::uint64_t         total_read_out_size = 0;
-    std::uint64_t         read_out_size       = 0;
+    std::uint64_t         read_out_size;
     do
     {
         buffer_size += buffer_block_step;
-        buffer = std::realloc(buffer, buffer_size);
-        if (buffer == nullptr)
+        const auto new_buffer = std::realloc(buffer, buffer_size);
+        if (new_buffer == nullptr)
         {
+            std::free(new_buffer);
             throw std::system_error(
                 errno, std::generic_category(), "failed to realloc buffer");
         }
+        buffer = new_buffer;
         read_out_size = zip_fread(file_to_read, buffer, buffer_size);
         if (read_out_size == -1U)
         {
@@ -68,7 +71,8 @@ libzip_file_read_helper(project::element_file_type file_to_read)
         }
         total_read_out_size += read_out_size;
     } while (read_out_size != 0);
-    return { buffer, total_read_out_size };
+    assert(total_read_out_size < std::numeric_limits<int>::max());
+    return { buffer, static_cast<int>(total_read_out_size) };
 }
 
 project::project(const std::filesystem::path& path)
@@ -99,7 +103,7 @@ project::project(const std::filesystem::path& path)
     auto file_buffer  = libzip_file_read_helper(file_to_read);
     // it do make a copy, but pmr is too complex for now.
     this->project_source = decltype(this->project_source)(
-        reinterpret_cast<char*>(file_buffer.first));
+        static_cast<char*>(file_buffer.first));
 
     this->stage_target = target_list.end();
     for (auto&& i : this->project_source.as_object()["targets"].as_array())
@@ -125,7 +129,7 @@ project::project(const std::filesystem::path& path)
             if (this->stage_target != target_list.end())
             {
                 auto&& stage_ref =
-                    dynamic_cast<stage&>((*this->stage_target).second);
+                    dynamic_cast<stage&>(this->stage_target->second);
                 auto target_object = target(stage_ref, i, this->element_list);
                 this->target_list.emplace(
                     std::string(target_name_view), std::move(target_object));
@@ -151,15 +155,15 @@ variable_value_helper(boost::json::value& va)
 {
     if (va.is_int64())
     {
-        return target::variable_value_type(va.as_int64());
+        return {va.as_int64()};
     }
     else if (va.is_double())
     {
-        return target::variable_value_type(va.as_double());
+        return {va.as_double()};
     }
     else if (va.is_string())
     {
-        return target::variable_value_type(std::string(va.as_string()));
+        return {std::string(va.as_string())};
     }
     else
     {
@@ -250,6 +254,8 @@ target::target(
         auto file_to_read =
             elem_list[std::string(i.as_object()["md5ext"].as_string())];
         auto file_buffer = libzip_file_read_helper(file_to_read);
+
+
         auto costume_rw  = SDL_RWFromMem(file_buffer.first, file_buffer.second);
         if (costume_rw == nullptr)
         {
