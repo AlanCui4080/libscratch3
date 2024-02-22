@@ -63,7 +63,11 @@ libzip_file_read_helper(project::element_file_type file_to_read)
             throw std::system_error(
                 errno, std::generic_category(), "failed to realloc buffer");
         }
-        buffer = new_buffer;
+        std::memset(
+            static_cast<char*>(new_buffer) + (buffer_size - buffer_block_step),
+            0, buffer_block_step);
+            
+        buffer        = new_buffer;
         read_out_size = zip_fread(file_to_read, buffer, buffer_size);
         if (read_out_size == -1U)
         {
@@ -102,11 +106,11 @@ project::project(const std::filesystem::path& path)
     auto file_to_read = this->element_list["project.json"];
     auto file_buffer  = libzip_file_read_helper(file_to_read);
     // it do make a copy, but pmr is too complex for now.
-    this->project_source = decltype(this->project_source)(
-        static_cast<char*>(file_buffer.first));
+    this->project_source =
+        boost::json::parse(static_cast<char*>(file_buffer.first)).as_object();
 
     this->stage_target = target_list.end();
-    for (auto&& i : this->project_source.as_object()["targets"].as_array())
+    for (auto&& i : this->project_source["targets"].as_array())
     {
         std::string_view target_name_view = i.as_object()["name"].as_string();
         if (i.as_object()["isStage"].as_bool())
@@ -155,15 +159,15 @@ variable_value_helper(boost::json::value& va)
 {
     if (va.is_int64())
     {
-        return {va.as_int64()};
+        return { va.as_int64() };
     }
     else if (va.is_double())
     {
-        return {va.as_double()};
+        return { va.as_double() };
     }
     else if (va.is_string())
     {
-        return {std::string(va.as_string())};
+        return { std::string(va.as_string()) };
     }
     else
     {
@@ -255,8 +259,7 @@ target::target(
             elem_list[std::string(i.as_object()["md5ext"].as_string())];
         auto file_buffer = libzip_file_read_helper(file_to_read);
 
-
-        auto costume_rw  = SDL_RWFromMem(file_buffer.first, file_buffer.second);
+        auto costume_rw = SDL_RWFromMem(file_buffer.first, file_buffer.second);
         if (costume_rw == nullptr)
         {
             throw libsdl_runtime_error();

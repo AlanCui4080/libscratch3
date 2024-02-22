@@ -101,7 +101,7 @@ namespace libsc3
         typedef zip_file_t* element_file_type;
 
     private:
-        boost::json::value                                 project_source;
+        boost::json::object                                project_source;
         project_bundle_type                                compressed_bundle;
         std::unordered_map<std::string, element_file_type> element_list;
         std::unordered_map<std::string, target>            target_list;
