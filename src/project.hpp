@@ -40,7 +40,7 @@ namespace libsc3
         typedef std::variant<std::string, std::int64_t, double>
                              variable_value_type;
         typedef SDL_Surface* renderer_surface_type;
-        typedef Mix_Music*   mixer_sound_type;
+        typedef Mix_Chunk*   mixer_sound_type;
         typedef zip_file_t*  element_file_type;
 
     private:
@@ -91,10 +91,6 @@ namespace libsc3
          * @note only one stage can be constructed in a project, it's actually a
          * warpper to target::target which provide *this to stage reference.
          */
-        stage(
-            boost::json::value&                                 json_value,
-            std::unordered_map<std::string, element_file_type>& elem_list);
-
     public:
         auto get_variable_list() -> decltype(variable_list)&;
     };

@@ -18,6 +18,8 @@
 
 #pragma once
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <SDL2/SDL_mixer.h>
 #include <memory>
 namespace libsc3
 {
@@ -31,6 +33,8 @@ namespace libsc3
         SDL_Renderer* player_renderer;
 
     public:
+        player();
+        ~player();
         player(SDL_Window* window);
     };
 } // namespace libsc3

@@ -18,12 +18,44 @@
 
 #include "player.hpp"
 #include "exception.hpp"
+
 using namespace libsc3;
+player::player()
+{
+    auto result = SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO);
+    if (result < 0)
+    {
+        throw libsdl_runtime_error();
+    }
+    result = IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG );
+    if (result == 0)
+    {
+        throw libsdl_runtime_error();
+    }
+    result = Mix_Init(MIX_INIT_FLAC | MIX_INIT_MP3 | MIX_INIT_OGG);
+    if (result == 0)
+    {
+        throw libsdl_runtime_error();
+    }
+    result = Mix_OpenAudio(48000, MIX_DEFAULT_FORMAT, 2, 4096);
+    if (result < 0)
+    {
+        throw libsdl_runtime_error();
+    }
+}
 player::player(SDL_Window* window)
+    : player()
 {
     this->player_renderer = SDL_CreateRenderer(window, -1, renderer_flag);
     if (this->player_renderer == nullptr)
     {
         throw libsdl_runtime_error();
     }
+}
+player::~player()
+{
+    IMG_Quit();
+    Mix_CloseAudio();
+    Mix_Quit();
+    SDL_Quit();
 }

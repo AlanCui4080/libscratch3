@@ -48,35 +48,20 @@ namespace detail
 static inline detail::file_segment
 libzip_file_read_helper(project::element_file_type file_to_read)
 {
-    static constexpr auto buffer_block_step   = 4096;
-    auto                  buffer_size         = 0;
-    void*                 buffer              = nullptr;
-    std::uint64_t         total_read_out_size = 0;
-    std::uint64_t         read_out_size;
-    do
+    static constexpr auto buffer_size = 1048576;
+    void*                 buffer      = std::malloc(buffer_size);
+    std::memset(buffer, 0, buffer_size);
+    auto read_out_size = zip_fread(file_to_read, buffer, buffer_size);
+    if (read_out_size == -1u)
     {
-        buffer_size += buffer_block_step;
-        const auto new_buffer = std::realloc(buffer, buffer_size);
-        if (new_buffer == nullptr)
-        {
-            std::free(new_buffer);
-            throw std::system_error(
-                errno, std::generic_category(), "failed to realloc buffer");
-        }
-        std::memset(
-            static_cast<char*>(new_buffer) + (buffer_size - buffer_block_step),
-            0, buffer_block_step);
-            
-        buffer        = new_buffer;
-        read_out_size = zip_fread(file_to_read, buffer, buffer_size);
-        if (read_out_size == -1U)
-        {
-            throw libzip_runtime_error(file_to_read);
-        }
-        total_read_out_size += read_out_size;
-    } while (read_out_size != 0);
-    assert(total_read_out_size < std::numeric_limits<int>::max());
-    return { buffer, static_cast<int>(total_read_out_size) };
+        throw libzip_runtime_error(file_to_read);
+    }
+    else if (read_out_size == buffer_size)
+    {
+        assert(false);
+    }
+    assert(read_out_size < std::numeric_limits<int>::max());
+    return { buffer, static_cast<int>(read_out_size) };
 }
 
 project::project(const std::filesystem::path& path)
@@ -115,9 +100,10 @@ project::project(const std::filesystem::path& path)
         std::string_view target_name_view = i.as_object()["name"].as_string();
         if (i.as_object()["isStage"].as_bool())
         {
-            auto stage_object = stage(i, this->element_list);
-            auto result       = this->target_list.emplace(
-                std::string(target_name_view), std::move(stage_object));
+            auto result = this->target_list.emplace(
+                std::piecewise_construct,
+                std::forward_as_tuple(target_name_view),
+                std::forward_as_tuple(i, this->element_list));
 
             if (this->stage_target == target_list.end())
             {
@@ -134,9 +120,10 @@ project::project(const std::filesystem::path& path)
             {
                 auto&& stage_ref =
                     static_cast<stage&>(this->stage_target->second);
-                auto target_object = target(stage_ref, i, this->element_list);
                 this->target_list.emplace(
-                    std::string(target_name_view), std::move(target_object));
+                    std::piecewise_construct,
+                    std::forward_as_tuple(target_name_view),
+                    std::forward_as_tuple(stage_ref, i, this->element_list));
             }
             else
             {
@@ -255,6 +242,7 @@ target::target(
     //         "rotationCenterY": 180
     //     }
     // ],
+
     for (auto&& i : json_value.as_object()["costumes"].as_array())
     {
         auto costume_name = std::string(i.as_object()["name"].as_string());
@@ -268,10 +256,15 @@ target::target(
             throw libsdl_runtime_error();
         }
 
-        auto data_fmt_str = i.as_object()["dataFormat"].as_string().c_str();
+        auto data_fmt_str =
+            std::string(i.as_object()["dataFormat"].as_string());
+        std::transform(
+            data_fmt_str.begin(), data_fmt_str.end(), data_fmt_str.begin(),
+            ::toupper);
         // number "1" in arguments presenting to free RWpos when returning. so
         // no need for SDL_RWclose below
-        auto costume_surface = IMG_LoadTyped_RW(costume_rw, 1, data_fmt_str);
+        auto costume_surface =
+            IMG_LoadTyped_RW(costume_rw, 1, data_fmt_str.c_str());
         if (costume_surface == nullptr)
         {
             throw libsdl_runtime_error();
@@ -293,6 +286,7 @@ target::target(
     //     }
     // ],
     // "volume": 100,
+
     for (auto&& i : json_value.as_object()["sounds"].as_array())
     {
         auto sound_name = std::string(i.as_object()["name"].as_string());
@@ -306,7 +300,7 @@ target::target(
         }
         // number "1" in arguments presenting to free RWpos when returning. so
         // no need for SDL_RWclose below
-        auto sound_target = Mix_LoadMUS_RW(sound_rw, 1);
+        auto sound_target = Mix_LoadWAV_RW(sound_rw, 1);
         if (sound_target == nullptr)
         {
             throw libsdl_runtime_error();
@@ -314,11 +308,16 @@ target::target(
         sound_list.insert_or_assign(sound_name, sound_target);
     }
 }
-stage::stage(
-    boost::json::value&                                 json_value,
-    std::unordered_map<std::string, element_file_type>& elem_list)
-    : target(*this, json_value, elem_list)
+target::~target()
 {
+    for (auto&& i : sound_list)
+    {
+        Mix_FreeChunk(i.second);
+    }
+    for (auto&& i : costume_list)
+    {
+        SDL_FreeSurface(i.second);
+    }
 }
 auto stage::get_variable_list() -> decltype(variable_list)&
 {
